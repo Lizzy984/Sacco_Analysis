@@ -4,7 +4,7 @@ Overview
 
 The SACCO Loan Analytics Dashboard is a Python-based interactive tool built using Streamlit. It allows users to analyze loan portfolios, assess borrower risk, and explore data-driven insights for decision-making. The dashboard integrates Machine Learning to predict borrower risk categories based on historical loan repayment data.
 
-Live Demo: SACCO Loan Analytics Dashboard
+Live Demo: https://saccoanalysis-lizzy.streamlit.app/
 
 Key Features
 
@@ -119,6 +119,7 @@ For issues or questions:
 1. Check that all dependencies are properly installed
 2. Ensure your data file matches the expected schema
 3. Verify you have sufficient data for model training
+
 
 
 Built with ❤️ for SACCOs and financial inclusion initiatives
