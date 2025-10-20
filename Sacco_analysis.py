@@ -12,10 +12,12 @@ st.set_page_config(page_title="LOAN ANALYTICS DASHBOARD", layout="wide")
 
 def load_data():
     try:
-        df = pd.read_excel("C:/Users/Liz/OneDrive/Desktop/JIPANGE_SACCO_ANALYSIS/jipange_dataset_cleaned.xlsx")
+        url = "https://raw.githubusercontent.com/Lizzy984/Sacco_Analysis/main/jipange_dataset_cleaned.xlsx"
+        df = pd.read_excel(url)
         return df
     except Exception as e:
         st.error(f"File load failed: {e}")
+
         np.random.seed(42)
         data = {
             'Borrower_ID': range(1, 101),
