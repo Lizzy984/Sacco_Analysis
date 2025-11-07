@@ -34,42 +34,53 @@ def load_data():
 
 def process_data(df):
     df_clean = df.copy()
-    
+
     def risk_classifier(score, status):
         if status == 'Default': return 'High Risk'
         if status == 'Late': return 'Medium Risk' if score > 0.5 else 'High Risk'
         return 'Low Risk' if score > 0.7 else 'Medium Risk'
-    
+
     df_clean['Risk_Category'] = df_clean.apply(lambda x: risk_classifier(x['Repayment_Score'], x['Repayment_Status']), axis=1)
     df_clean['Age_Group'] = pd.cut(df_clean['Age'], [17, 25, 30, 36], labels=['18-25', '26-30', '31-35'])
     return df_clean
 
 def train_model(df):
-    features = ['Age', 'Loan_Amount', 'Income_Level', 'Business_Type', 'Loan_Year']
+    # Include Repayment_Score as it's the most important feature
+    features = ['Age', 'Loan_Amount', 'Income_Level', 'Business_Type', 'Loan_Year', 'Repayment_Score']
     target = 'Risk_Category'
-    
+
     if df[target].nunique() < 2:
         raise ValueError("Need multiple risk categories")
-    
+
     le_income = LabelEncoder()
     le_business = LabelEncoder()
     le_risk = LabelEncoder()
-    
+
     X = df[features].copy()
     X['Income_Level_Enc'] = le_income.fit_transform(X['Income_Level'])
     X['Business_Type_Enc'] = le_business.fit_transform(X['Business_Type'])
-    X = X[['Age', 'Loan_Amount', 'Income_Level_Enc', 'Business_Type_Enc', 'Loan_Year']]
-    
+    X = X[['Age', 'Loan_Amount', 'Loan_Year', 'Repayment_Score', 'Income_Level_Enc', 'Business_Type_Enc']]
+
     y = le_risk.fit_transform(df[target])
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+    # Optimized parameters for high accuracy
+    model = RandomForestClassifier(
+        n_estimators=200,
+        max_depth=12,
+        min_samples_split=3,
+        min_samples_leaf=1,
+        max_features='sqrt',
+        random_state=42,
+        class_weight='balanced'
+    )
     
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
     model.fit(X_train, y_train)
-    
+
     y_pred = model.predict(X_test)
     accuracy = accuracy_score(y_test, y_pred)
-    
+
     return model, le_income, le_business, le_risk, accuracy
 
 if 'model_tracker' not in st.session_state:
@@ -137,28 +148,29 @@ if st.sidebar.button("Train Model"):
 
 if st.session_state.current_model:
     st.sidebar.header("Risk Check")
-    
+
     with st.sidebar.form("predict"):
         p_age = st.slider("Age", 18, 35, 25)
         p_loan = st.number_input("Loan Amount", 5000, 100000, 30000)
         p_income = st.selectbox("Income", ["Low", "Medium", "High"])
         p_business = st.selectbox("Business", ["Salon", "Farming", "Retail", "Boda Boda", "Other"])
-        
+
         if st.form_submit_button("Check Risk"):
             model_data = st.session_state.current_model
             le_inc, le_bus, le_rsk = model_data['encoders']
-            
+
             input_data = pd.DataFrame([{
                 'Age': p_age, 
                 'Loan_Amount': p_loan,
+                'Loan_Year': 2024,
+                'Repayment_Score': 0.7,  # Default score for new applicants
                 'Income_Level_Enc': le_inc.transform([p_income])[0],
-                'Business_Type_Enc': le_bus.transform([p_business])[0],
-                'Loan_Year': 2024
+                'Business_Type_Enc': le_bus.transform([p_business])[0]
             }])
-            
+
             prediction = model_data['model'].predict(input_data)[0]
             risk_level = le_rsk.inverse_transform([prediction])[0]
-            
+
             if risk_level == "Low Risk":
                 st.sidebar.success(f"Risk: {risk_level}")
             elif risk_level == "Medium Risk":
@@ -187,7 +199,7 @@ with col1:
     risk_data = df_filtered['Risk_Category'].value_counts()
     fig_risk = px.pie(values=risk_data.values, names=risk_data.index, title="Risk Distribution")
     st.plotly_chart(fig_risk, use_container_width=True)
-    
+
     with st.expander("Risk Distribution Analysis"):
         st.write("""
         **Summary Analysis:**
@@ -202,7 +214,7 @@ with col2:
     yearly_data = df_filtered.groupby('Loan_Year').agg({'Loan_Amount': 'sum'}).reset_index()
     fig_trend = px.line(yearly_data, x='Loan_Year', y='Loan_Amount', title="Portfolio Trend")
     st.plotly_chart(fig_trend, use_container_width=True)
-    
+
     with st.expander("Portfolio Trend Analysis"):
         st.write("""
         **Summary Analysis:**
@@ -218,7 +230,7 @@ with col3:
     biz_data = df_filtered.groupby('Business_Type')['Repayment_Score'].mean().reset_index()
     fig_biz = px.bar(biz_data, x='Business_Type', y='Repayment_Score', title="Business Performance")
     st.plotly_chart(fig_biz, use_container_width=True)
-    
+
     with st.expander("Business Performance Analysis"):
         st.write("""
         **Summary Analysis:**
@@ -232,7 +244,7 @@ with col4:
     age_risk = pd.crosstab(df_filtered['Age_Group'], df_filtered['Risk_Category'])
     fig_age = px.bar(age_risk, barmode='group', title="Age vs Risk")
     st.plotly_chart(fig_age, use_container_width=True)
-    
+
     with st.expander("Age vs Risk Analysis"):
         st.write("""
         **Summary Analysis:**
@@ -247,7 +259,7 @@ col5, col6 = st.columns(2)
 with col5:
     fig_loan_dist = px.histogram(df_filtered, x='Loan_Amount', title="Loan Amount Distribution", nbins=15)
     st.plotly_chart(fig_loan_dist, use_container_width=True)
-    
+
     with st.expander("Loan Amount Analysis"):
         st.write("""
         **Summary Analysis:**
@@ -261,7 +273,7 @@ with col6:
     status_data = df_filtered['Repayment_Status'].value_counts()
     fig_status = px.bar(x=status_data.index, y=status_data.values, title="Repayment Status")
     st.plotly_chart(fig_status, use_container_width=True)
-    
+
     with st.expander("Repayment Status Analysis"):
         st.write("""
         **Summary Analysis:**
@@ -274,22 +286,22 @@ with col6:
 
 if st.session_state.current_model:
     st.subheader("Model Insights")
-    
+
     model_data = st.session_state.current_model
     model = model_data['model']
-    
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
-        feature_names = ['Age', 'Loan Amount', 'Income Level', 'Business Type', 'Loan Year']
+        feature_names = ['Age', 'Loan Amount', 'Loan Year', 'Repayment Score', 'Income Level', 'Business Type']
         importance_df = pd.DataFrame({
             'Feature': feature_names,
             'Importance': model.feature_importances_
         }).sort_values('Importance', ascending=True)
-        
+
         fig_importance = px.bar(importance_df, x='Importance', y='Feature', title="Feature Importance", orientation='h')
         st.plotly_chart(fig_importance, use_container_width=True)
-        
+
         with st.expander("Feature Importance Analysis"):
             st.write("""
             **Summary Analysis:**
